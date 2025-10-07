@@ -12,15 +12,15 @@ from pathlib import Path
 # GLOBAL SETTINGS
 # ----------------------------------------------------------------------------
 
-APP_DOMAIN: str = "pygls"
-APP_MAIN_MODULE: str = APP_DOMAIN
+APP_NAME: str = "pygls"
+APP_ROOT_PACKAGE: str = APP_NAME
+LOCALE_DOMAIN: str = APP_NAME
 
 # full relative paths to the locale files.
+VALID_LOCALES: List[str] = ['pt_BR', 'en_US']
 LOCALE_DIR: str = 'locale'
-LOCALE_POT: str = os.path.join(LOCALE_DIR, APP_DOMAIN + '.pot')
+LOCALE_POT: str = os.path.join(LOCALE_DIR, LOCALE_DOMAIN + '.pot')
 
-MESSAGES_PATH: str = os.path.join(LOCALE_DIR, 'en_US', 'LC_MESSAGES')
-MESSAGES_FILE: str = os.path.join(MESSAGES_PATH, APP_DOMAIN + '.po')
 
 # ----------------------------------------------------------------------
 # OS PROCESS HELPERS
@@ -185,16 +185,17 @@ result_ok: bool = False
 
 # --- Extract English strings → messages.pot
 # Equivalent to:  pybabel extract -F babel.cfg -o locale/messages.pot .
-result_ok = run_pybabel_command(['extract', '-F', 'babel.cfg', '-o', LOCALE_POT, '.'])
+result_ok = run_pybabel_command(['extract', '-F', 'tools/babel.cfg', '-o', LOCALE_POT, '.'])
 if not result_ok:
     print("\n🚨 Please ensure **Babel** is installed in your environment (e.g., `pip install Babel`).", file=sys.stderr)
     sys.exit(1)
 
 # Check if the directory structure and the file already exist.
-if os.path.exists(MESSAGES_FILE) and os.path.isfile(MESSAGES_FILE):
+en_us_messages_path: str = os.path.join('locale', 'en_US', 'LC_MESSAGES', LOCALE_DOMAIN + '.po')
+if os.path.exists(en_us_messages_path) and os.path.isfile(en_us_messages_path):
     # --- Update a .po translation file.
     # Equivalent to:  pybabel update -D messages -i locale/messages.pot -d locale
-    result_ok = run_pybabel_command(['update', '-D', APP_DOMAIN, '-i', LOCALE_POT, '-d', LOCALE_DIR])
+    result_ok = run_pybabel_command(['update', '-D', LOCALE_DOMAIN, '-i', LOCALE_POT, '-d', LOCALE_DIR])
     if not result_ok: sys.exit(1)
 
     # --- Review, edit, and remove translations marked as fuzzy: #, fuzzy
@@ -202,25 +203,19 @@ if os.path.exists(MESSAGES_FILE) and os.path.isfile(MESSAGES_FILE):
     run_command(['grep', '-n', '-i', '-H', '-r', '--include="*.po"', '"fuzzy"', LOCALE_DIR])
 
 else:
-    # --- Initialize English catalog → locale/en_US/LC_MESSAGES/messages.po 
-    # Equivalent to:  pybabel init -D messages -i locale/messages.pot -d locale -l en_US
+    # --- Initialize each language catalog → locale/idiom/LC_MESSAGES/messages.po 
+    # Equivalent to:  pybabel init -D messages -i src/app/locale/messages.pot -d src/app/locale -l language
     # NOTE: Recommended even if English is source. This allows translators 
     # to correct source English if needed.
-    result_ok = run_pybabel_command(['init', '-D', APP_DOMAIN, '-i', LOCALE_POT, '-d', LOCALE_DIR, '-l', 'en_US'])
-    if not result_ok: sys.exit(1)
-
-    # --- Initialize Portuguese catalog → locale/pt_BR/LC_MESSAGES/messages.po
-    # Equivalent to:  pybabel init -D messages -i locale/messages.pot -d locale -l pt_BR
-    # NOTE: This will fail if 'messages.pot' from the previous command doesn't exist.
-    # or if the 'po' directory doesn't exist.
-    result_ok = run_pybabel_command(['init', '-D', APP_DOMAIN, '-i', LOCALE_POT, '-d', LOCALE_DIR, '-l', 'pt_BR'])
-    if not result_ok: sys.exit(1)
+    for idiom in VALID_LOCALES:
+        result_ok = run_pybabel_command(['init', '-D', LOCALE_DOMAIN, '-i', LOCALE_POT, '-d', LOCALE_DIR, '-l', idiom])
+        if not result_ok: sys.exit(1)
 
 # --- Compile .po → .mo
 # The gettext runtime system uses binary .mo files, so you must compile the .po files.
 # Equivalent to:  pybabel compile -D messages -d locale
 # NOTE: This will fail if 'messages.po' from the previous command doesn't exist.
-result_ok = run_pybabel_command(['compile', '-D', APP_DOMAIN, '-d', LOCALE_DIR])
+result_ok = run_pybabel_command(['compile', '-D', LOCALE_DOMAIN, '-d', LOCALE_DIR])
 if not result_ok: sys.exit(1)
 
 # --- Update locales of projects using this library:
